@@ -24,12 +24,19 @@ export default function NoteList() {
 
   useEffect(() => {
     refresh();
-    // Auto-retry failed exports on editor load (single-user reconciliation).
-    fetch("/api/admin/jobs/retry", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }).then(refresh);
+    fetch("/api/admin/jobs/retry", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    }).then(refresh);
   }, []);
 
   async function retryAll() {
-    await fetch("/api/admin/jobs/retry", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+    await fetch("/api/admin/jobs/retry", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{}",
+    });
     refresh();
   }
 
@@ -48,49 +55,67 @@ export default function NoteList() {
     location.href = "/";
   }
 
+  const VIS_LABEL: Record<NoteSummary["visibility"], string> = {
+    draft: "草稿",
+    published: "已发布",
+    unpublished: "已下架",
+  };
+
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1 style={{ fontSize: "1.4rem", margin: 0 }}>Notes</h1>
+      <div className="editor-topbar">
+        <span className="crumb">笔记</span>
         <div style={{ display: "flex", gap: "0.5rem" }}>
-          {anyFailed && <button onClick={retryAll}>Retry failed exports</button>}
-          <button onClick={createNote} disabled={creating}>
-            + New note
+          {anyFailed && <button onClick={retryAll}>重试失败的导出</button>}
+          <button className="btn--primary" onClick={createNote} disabled={creating}>
+            + 新笔记
           </button>
-          <button onClick={logout} title="Sign out">
+          <button onClick={logout} title="退出登录">
             ⎋
           </button>
         </div>
       </div>
 
       {notes === null ? (
-        <p style={{ color: "var(--text-muted)" }}>Loading…</p>
+        <p style={{ color: "var(--text-faint)" }}>加载中…</p>
       ) : notes.length === 0 ? (
-        <p style={{ color: "var(--text-muted)" }}>
-          No notes yet. Create one — it saves automatically as you type.
+        <p style={{ color: "var(--text-faint)" }}>
+          还没有笔记。创建一条 — 输入即自动保存。
         </p>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0 }}>
+        <ul className="note-list">
           {notes.map((n) => (
-            <li key={n.id} style={{ padding: "0.7rem 0", borderBottom: "1px solid var(--border)" }}>
-              <a href={`/editor/${n.id}`} style={{ fontWeight: 600 }}>
-                {n.title || "(untitled)"}
-              </a>
-              <span className="badge">{n.visibility}</span>
-              {n.job && n.job.status === "failed" && (
-                <span className="badge" style={{ color: "var(--danger)" }}>export failed</span>
-              )}
-              {n.visibility === "published" && n.publicRevision === n.draftRevision - 1 && (
-                <span className="badge">unsaved edits</span>
-              )}
-              <div style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>
-                updated {n.updatedAt.slice(0, 16).replace("T", " ")} · rev {n.draftRevision}
-                {n.slug && <> · /posts/{n.slug}</>}
+            <li key={n.id}>
+              <div>
+                <a className="note-title" href={`/editor/${n.id}`}>
+                  {n.title || "(无标题)"}
+                </a>{" "}
+                <span
+                  className={
+                    "chip" + (n.visibility === "published" ? " chip--ok" : "")
+                  }
+                >
+                  {VIS_LABEL[n.visibility]}
+                </span>
+                {n.job && n.job.status === "failed" && (
+                  <span className="chip chip--danger">导出失败</span>
+                )}
+                {n.visibility === "published" && n.publicRevision === n.draftRevision - 1 && (
+                  <span className="chip">有未发布的修改</span>
+                )}
+              </div>
+              <div className="note-meta">
+                {n.updatedAt.slice(0, 16).replace("T", " ")} · rev {n.draftRevision}
+                {n.slug && ` · /posts/${n.slug}`}
               </div>
             </li>
           ))}
         </ul>
       )}
+
+      <p style={{ marginTop: "2rem" }}>
+        <a href="/editor/comments">评论审核 →</a>
+      </p>
     </div>
   );
 }

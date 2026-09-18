@@ -11,4 +11,10 @@ export const runtimeEnv = env as unknown as {
   GITHUB_TOKEN?: string;
   GITHUB_REPO?: string;
   TURNSTILE_SECRET?: string;
+  // OAuth (each provider activates when both its secrets exist)
+  GITHUB_CLIENT_ID?: string;
+  GITHUB_CLIENT_SECRET?: string;
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  AUTHOR_EMAILS?: string; // comma-separated allow-list of accounts
 };

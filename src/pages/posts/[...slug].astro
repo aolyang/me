@@ -57,7 +57,7 @@ if (kind === "note") {
         <time datetime={publishedAt.toISOString()}>
           {publishedAt.toISOString().slice(0, 10)}
         </time>
-        {kind === "note" && <span class="badge">note</span>}
+        {kind === "note" && <span class="chip">note</span>}
       </div>
     </header>
     {

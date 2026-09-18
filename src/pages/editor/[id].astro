@@ -6,6 +6,10 @@ const { id } = Astro.params;
 if (!id) return new Response("not found", { status: 404 });
 ---
 
-<Base title="Edit note">
+<Base title="编辑笔记" wide>
+  <div class="editor-topbar">
+    <a class="crumb" href="/editor/">← 笔记</a>
+    <span class="chip">自动保存已开启</span>
+  </div>
   <NoteEditor client:load noteId={id} />
 </Base>

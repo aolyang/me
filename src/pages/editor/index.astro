@@ -3,9 +3,6 @@ import Base from "../../layouts/Base.astro";
 import NoteList from "../../components/editor/NoteList";
 ---
 
-<Base title="Editor">
+<Base title="编辑器" wide>
   <NoteList client:load />
-  <p style="margin-top: 2rem">
-    <a href="/editor/comments">comments →</a>
-  </p>
 </Base>

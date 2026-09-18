@@ -56,33 +56,31 @@ export default function Comments({ contentId }: { contentId: string }) {
   }
 
   return (
-    <section style={{ marginTop: "3rem" }}>
-      <h2 style={{ fontSize: "1.2rem" }}>Comments</h2>
+    <section className="comments-section">
+      <h2>评论</h2>
 
       {comments === null ? (
-        <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>Loading…</p>
+        <p style={{ color: "var(--text-faint)", fontSize: "0.9rem" }}>加载中…</p>
       ) : comments.length === 0 ? (
-        <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>No comments yet.</p>
+        <p style={{ color: "var(--text-faint)", fontSize: "0.9rem" }}>还没有评论。</p>
       ) : (
         <ul style={{ listStyle: "none", padding: 0 }}>
           {comments.map((c) => (
-            <li key={c.id} style={{ padding: "0.7rem 0", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>
-                {c.author_name || "anonymous"}
-                <span style={{ fontWeight: 400, color: "var(--text-muted)", marginLeft: "0.6rem", fontSize: "0.8rem" }}>
-                  {c.created_at.slice(0, 10)}
-                </span>
+            <li key={c.id} className="comment-item">
+              <div className="who">
+                {c.author_name || "匿名"}
+                <span className="when">{c.created_at.slice(0, 10)}</span>
               </div>
               {/* body is stored as PLAIN TEXT and React escapes it on render */}
-              <div style={{ whiteSpace: "pre-wrap" }}>{c.body}</div>
+              <p className="body">{c.body}</p>
             </li>
           ))}
         </ul>
       )}
 
       {state === "sent" ? (
-        <p style={{ background: "var(--accent-soft)", padding: "0.6rem 0.9rem", borderRadius: 8, fontSize: "0.9rem" }}>
-          Thanks — your comment is awaiting moderation.
+        <p style={{ background: "var(--bg-sunk)", padding: "0.6rem 0.9rem", borderRadius: "var(--radius)", fontSize: "0.9rem" }}>
+          谢谢 — 你的评论等待审核中。
         </p>
       ) : (
         <form onSubmit={submit}>
@@ -90,22 +88,22 @@ export default function Comments({ contentId }: { contentId: string }) {
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Name (optional)"
+            placeholder="名字(可选)"
             maxLength={80}
-            style={{ display: "block", width: "100%", font: "inherit", padding: "0.45rem 0.7rem", border: "1px solid var(--border)", borderRadius: 6, marginBottom: "0.5rem" }}
+            style={{ display: "block", width: "100%", marginBottom: "0.5rem" }}
           />
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder="Write a comment…"
+            placeholder="写条评论…"
             maxLength={5000}
             rows={3}
             required
-            style={{ display: "block", width: "100%", font: "inherit", padding: "0.45rem 0.7rem", border: "1px solid var(--border)", borderRadius: 6, marginBottom: "0.5rem", resize: "vertical" }}
+            style={{ display: "block", width: "100%", marginBottom: "0.5rem", resize: "vertical" }}
           />
           {state === "error" && <p style={{ color: "var(--danger)", fontSize: "0.85rem" }}>{errorMsg}</p>}
-          <button disabled={state === "sending"} style={{ font: "inherit" }}>
-            {state === "sending" ? "Sending…" : "Submit"}
+          <button className="btn--primary" disabled={state === "sending"}>
+            {state === "sending" ? "发送中…" : "提交"}
           </button>
         </form>
       )}

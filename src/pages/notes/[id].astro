@@ -44,7 +44,7 @@ const publishedAt = note.published_at ?? note.updated_at;
       <h1>{note.title || "Untitled"}</h1>
       <div class="meta">
         <time datetime={publishedAt}>{publishedAt.slice(0, 10)}</time>
-        <span class="badge">note</span>
+        <span class="chip">note</span>
       </div>
     </header>
     <div class="prose" set:html={html} />

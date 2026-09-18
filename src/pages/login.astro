@@ -1,8 +1,14 @@
 ---
+// Login page: OAuth buttons (when provider secrets are configured server-side)
+// + password fallback (when AUTH_PASSWORD is set).
 import Base from "../layouts/Base.astro";
 import Login from "../components/Login";
+import { oauthProviders } from "../lib/oauth";
+
+const next = Astro.url.searchParams.get("next") ?? "/editor/";
+const providers = oauthProviders();
 ---
 
-<Base title="Sign in">
-  <Login client:load next={Astro.url.searchParams.get("next") ?? "/editor/"} />
+<Base title="登录">
+  <Login client:load next={next} oauthEnabled={providers.length > 0} />
 </Base>

@@ -3,25 +3,36 @@ import "../styles/global.css";
 
 interface Props {
   title?: string;
+  wide?: boolean;
 }
-const { title } = Astro.props;
+const { title, wide } = Astro.props;
 ---
 
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <title>{title ? `${title} · me` : "me"}</title>
+    <title>{title ? `${title} · aolyang` : "aolyang · 写给自己的笔记"}</title>
+    <meta name="description" content="code, notes & life" />
   </head>
   <body>
-    <div class="container">
+    <div class={wide ? "page page--wide" : "page"}>
       <header class="site-header">
-        <a href="/" class="brand">me</a>
-        <a href="/rss.xml">rss</a>
+        <a href="/" class="brand">aolyang</a>
+        <nav class="site-nav">
+          <a href="/rss.xml">rss</a>
+          <a href="/editor/">editor</a>
+        </nav>
       </header>
-      <slot />
+      <main>
+        <slot />
+      </main>
+      <footer class="site-footer">
+        <span>code, notes & life</span>
+        <span>© {new Date().getFullYear()}</span>
+      </footer>
     </div>
   </body>
 </html>

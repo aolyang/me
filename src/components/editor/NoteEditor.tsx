@@ -1,6 +1,12 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { EditorContent, useEditor } from "@tiptap/react";
+import { EditorContent, useEditor, ReactRenderer } from "@tiptap/react";
+import { BubbleMenu } from "@tiptap/react/menus";
+import tippy from "tippy.js";
+import "tippy.js/dist/tippy.css";
 import { contentExtensions } from "../../content-extensions";
+import { SlashCommands, type SlashCommandItem } from "./slash-commands";
+import SlashMenu from "./SlashMenu";
+import Placeholder from "@tiptap/extension-placeholder";
 
 interface NoteRecord {
   id: string;
@@ -24,24 +30,70 @@ export default function NoteEditor({ noteId }: { noteId: string }) {
   const dirtyRef = useRef(false);
 
   const editor = useEditor({
-    extensions: contentExtensions,
+    extensions: [
+      ...contentExtensions, // StarterKit 3 already includes Link
+      Placeholder.configure({ placeholder: "写点什么… 输入 / 打开命令菜单" }),
+      SlashCommands.configure({
+        suggestion: {
+          render: () => {
+            let component: ReactRenderer | null = null;
+            let popup: TippyInstance[] | TippyInstance | null = null;
+
+            return {
+              onStart: (props) => {
+                // use the editor FROM the props — the `editor` closure captured
+                // at useEditor() time may still be null on first render.
+                component = new ReactRenderer(SlashMenu, { editor: props.editor, props });
+                const rect = props.clientRect?.();
+                if (!rect) return;
+                popup = tippy(document.body, {
+                  getReferenceClientRect: () => rect as DOMRect,
+                  appendTo: () => document.body,
+                  content: component.element,
+                  showOnCreate: true,
+                  interactive: true,
+                  trigger: "manual",
+                  placement: "bottom-start",
+                });
+              },
+              onUpdate: (props) => {
+                component?.updateProps(props);
+                const rect = props.clientRect?.();
+                const inst = (popup as Array<{ setProps: (p: object) => void }> | null)?.[0];
+                if (rect && inst) {
+                  inst.setProps({ getReferenceClientRect: () => rect as DOMRect });
+                }
+              },
+              onKeyDown: (props) => {
+                const inst = (popup as Array<{ hide: () => void }> | null)?.[0];
+                if (props.event.key === "Escape") {
+                  inst?.hide();
+                  return true;
+                }
+                return component?.ref?.onKeyDown(props) ?? false;
+              },
+              onExit: () => {
+                (popup as Array<{ destroy: () => void }> | null)?.[0]?.destroy();
+                popup = null;
+                component?.destroy();
+                component = null;
+              },
+            };
+          },
+        },
+      }),
+    ],
     content: { type: "doc", content: [] },
     editorProps: {
-      attributes: {
-        class: "prose",
-        style: "outline:none;min-height:50vh",
-      },
       // Paste/drop an image → upload to R2 → insert media:// node.
-      // (Synchronous handlers; the async upload runs detached and inserts
-      // when it resolves. Returning true only for image content.)
-      handlePaste: (view, event) => {
+      handlePaste: (_view, event) => {
         const hasImage = Array.from(event.clipboardData?.files ?? []).some((f) =>
           f.type.startsWith("image/"),
         );
         if (hasImage) void handleMediaInsert(event.clipboardData);
         return hasImage;
       },
-      handleDrop: (view, event) => {
+      handleDrop: (_view, event) => {
         const hasImage = Array.from(event.dataTransfer?.files ?? []).some((f) =>
           f.type.startsWith("image/"),
         );
@@ -70,7 +122,7 @@ export default function NoteEditor({ noteId }: { noteId: string }) {
       try {
         const res = await fetch(`/api/admin/notes/${noteId}/images`, { method: "POST", body: form });
         if (!res.ok) {
-          setMessage(`Image upload failed (${res.status}).`);
+          setMessage(`图片上传失败 (${res.status})`);
           continue;
         }
         const { src } = (await res.json()) as { src: string };
@@ -78,7 +130,7 @@ export default function NoteEditor({ noteId }: { noteId: string }) {
         dirtyRef.current = true;
         setSaveState("dirty");
       } catch {
-        setMessage("Image upload failed — check your connection.");
+        setMessage("图片上传失败 — 检查网络连接");
       }
     }
   }
@@ -94,7 +146,7 @@ export default function NoteEditor({ noteId }: { noteId: string }) {
         revisionRef.current = rec.draft_revision;
         editor?.commands.setContent(JSON.parse(rec.document));
       })
-      .catch(() => setMessage("Could not load note"));
+      .catch(() => setMessage("无法加载笔记"));
   }, [noteId, editor]);
 
   const save = useCallback(async () => {
@@ -121,7 +173,7 @@ export default function NoteEditor({ noteId }: { noteId: string }) {
     setSaveState("saved");
   }, [editor, noteId, title]);
 
-  // Debounced autosave — typed text is never sent more often than every 1.5s.
+  // Debounced autosave.
   useEffect(() => {
     if (saveState !== "dirty") return;
     const t = setTimeout(save, 1500);
@@ -134,7 +186,10 @@ export default function NoteEditor({ noteId }: { noteId: string }) {
       if (dirtyRef.current) {
         navigator.sendBeacon?.(
           `/api/admin/notes/${noteId}`,
-          new Blob([JSON.stringify({ expectedRevision: revisionRef.current, title, document: editor?.getJSON() })], { type: "application/json" }),
+          new Blob(
+            [JSON.stringify({ expectedRevision: revisionRef.current, title, document: editor?.getJSON() })],
+            { type: "application/json" },
+          ),
         );
       }
     };
@@ -159,11 +214,11 @@ export default function NoteEditor({ noteId }: { noteId: string }) {
       setNote((n) => (n ? { ...n, visibility: "published", slug: data.slug, public_revision: data.publicRevision } : n));
       setMessage(
         data.jobStatus === "failed"
-          ? "Published (live via /notes) — but the GitHub export failed; retry from the list."
-          : "Published. Live now at /notes; the static /posts page appears after the next build (~1–2 min).",
+          ? "已发布(通过 /notes 立即可见)— 但 GitHub 导出失败,可从列表重试。"
+          : "已发布。/notes 立即可见;静态 /posts 页面将在下次构建后出现(约 1–2 分钟)。",
       );
     } else {
-      setMessage("Publish failed.");
+      setMessage("发布失败。");
     }
   }
 
@@ -177,113 +232,101 @@ export default function NoteEditor({ noteId }: { noteId: string }) {
     setPublishing(false);
     if (res.ok) {
       setNote((n) => (n ? { ...n, visibility: "unpublished" } : n));
-      setMessage("Unpublished. Hidden from lists now; the /posts URL disappears after the next build.");
+      setMessage("已下架。列表立即隐藏;/posts 地址将在下次构建后消失。");
     } else {
-      setMessage("Unpublish failed.");
+      setMessage("下架失败。");
     }
   }
 
-  if (!note) return <p style={{ color: "var(--text-muted)" }}>{message ?? "Loading…"}</p>;
+  function addLink() {
+    if (!editor) return;
+    const url = window.prompt("链接地址", "https://");
+    if (url === null) return;
+    if (url === "") {
+      editor.chain().focus().unsetLink().run();
+      return;
+    }
+    editor.chain().focus().setLink({ href: url }).run();
+  }
+
+  if (!note) return <p style={{ color: "var(--text-faint)" }}>{message ?? "加载中…"}</p>;
 
   const stateLabel: Record<SaveState, string> = {
     idle: "",
-    dirty: "unsaved…",
-    saving: "saving…",
-    saved: "saved",
-    conflict: "conflict — another tab saved newer changes. Copy your text, reload, and re-apply.",
-    error: "save failed — will retry on next keystroke",
+    dirty: "未保存…",
+    saving: "保存中…",
+    saved: "已保存",
+    conflict: "冲突 — 另一个标签页保存了更新的内容。复制当前文字后刷新再粘贴。",
+    error: "保存失败 — 下次输入时重试",
   };
 
   return (
     <div>
       <input
+        class="title-input"
         value={title}
-        placeholder="Title"
+        placeholder="标题"
         onChange={(e) => {
           setTitle(e.target.value);
           dirtyRef.current = true;
           setSaveState("dirty");
         }}
-        style={{
-          width: "100%",
-          font: "inherit",
-          fontSize: "1.5rem",
-          fontWeight: 700,
-          border: "none",
-          outline: "none",
-          padding: 0,
-          marginBottom: "0.5rem",
-          background: "transparent",
-          color: "var(--text)",
-        }}
       />
 
-      <Toolbar editor={editor} />
+      {editor && (
+        <BubbleMenu editor={editor} tippyOptions={{ duration: 120 }} className="bubble-menu">
+          <button
+            onClick={() => editor.chain().focus().toggleBold().run()}
+            className={editor.isActive("bold") ? "is-active" : ""}
+            title="粗体"
+          >
+            B
+          </button>
+          <button
+            onClick={() => editor.chain().focus().toggleItalic().run()}
+            className={editor.isActive("italic") ? "is-active" : ""}
+            title="斜体"
+          >
+            I
+          </button>
+          <button
+            onClick={() => editor.chain().focus().toggleCode().run()}
+            className={editor.isActive("code") ? "is-active" : ""}
+            title="行内代码"
+          >
+            {"</>"}
+          </button>
+          <button
+            onClick={addLink}
+            className={editor.isActive("link") ? "is-active" : ""}
+            title="链接"
+          >
+            🔗
+          </button>
+        </BubbleMenu>
+      )}
 
       <EditorContent editor={editor} />
 
-      <hr style={{ margin: "2rem 0 1rem" }} />
-      <div style={{ display: "flex", gap: "0.8rem", alignItems: "center", flexWrap: "wrap" }}>
+      <div className="publish-row">
         {note.visibility !== "published" ? (
-          <button onClick={publish} disabled={publishing}>
-            {publishing ? "Publishing…" : "Publish"}
+          <button className="btn--primary" onClick={publish} disabled={publishing}>
+            {publishing ? "发布中…" : "发布"}
           </button>
         ) : (
           <>
-            <span className="badge">live · rev {note.public_revision}</span>
-            <button onClick={publish} disabled={publishing}>
-              {publishing ? "Publishing…" : "Republish changes"}
+            <span className="chip chip--ok">已发布 · rev {note.public_revision}</span>
+            <button className="btn--primary" onClick={publish} disabled={publishing}>
+              {publishing ? "发布中…" : "重新发布修改"}
             </button>
-            <button onClick={unpublish} disabled={publishing} style={{ color: "var(--danger)" }}>
-              Unpublish
+            <button className="btn--danger" onClick={unpublish} disabled={publishing}>
+              下架
             </button>
           </>
         )}
-        <span style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>{stateLabel[saveState]}</span>
+        <span className="status">{stateLabel[saveState]}</span>
+        {message && <div className="notice">{message}</div>}
       </div>
-      {message && (
-        <p style={{ background: "var(--accent-soft)", padding: "0.6rem 0.9rem", borderRadius: 8, fontSize: "0.9rem" }}>
-          {message}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
-  if (!editor) return null;
-  const btn = (active: boolean): React.CSSProperties => ({
-    border: "1px solid var(--border)",
-    background: active ? "var(--accent-soft)" : "transparent",
-    borderRadius: 6,
-    padding: "0.15rem 0.5rem",
-    marginRight: 4,
-    cursor: "pointer",
-    font: "inherit",
-    fontSize: "0.85rem",
-  });
-  const items: Array<[string, string, () => void]> = [
-    ["B", "bold", () => editor.chain().focus().toggleBold().run()],
-    ["I", "italic", () => editor.chain().focus().toggleItalic().run()],
-    ["S", "strike", () => editor.chain().focus().toggleStrike().run()],
-    ["</>", "code", () => editor.chain().focus().toggleCode().run()],
-    ["H2", "h2", () => editor.chain().focus().toggleHeading({ level: 2 }).run()],
-    ["H3", "h3", () => editor.chain().focus().toggleHeading({ level: 3 }).run()],
-    ["•", "bullet", () => editor.chain().focus().toggleBulletList().run()],
-    ["1.", "ordered", () => editor.chain().focus().toggleOrderedList().run()],
-    ["❝", "quote", () => editor.chain().focus().toggleBlockquote().run()],
-    ["{ }", "codeblock", () => editor.chain().focus().toggleCodeBlock().run()],
-    ["—", "hr", () => editor.chain().focus().setHorizontalRule().run()],
-  ];
-  return (
-    <div style={{ marginBottom: "1rem", display: "flex", flexWrap: "wrap" }}>
-      {items.map(([label, key, run]) => (
-        <button key={key} style={btn(false)} onMouseDown={(e) => { e.preventDefault(); run(); }}>
-          {label}
-        </button>
-      ))}
-      <button style={btn(false)} onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().undo().run(); }}>↺</button>
-      <button style={btn(false)} onMouseDown={(e) => { e.preventDefault(); editor.chain().focus().redo().run(); }}>↻</button>
     </div>
   );
 }
