@@ -22,8 +22,8 @@ export const GET: APIRoute = async ({ params, request }) => {
   if (!row) return new Response("not found", { status: 404 });
 
   if (!row.public) {
-    const jwt = request.headers.get("Cf-Access-Jwt-Assertion");
-    if (!(await isAdmin(jwt))) {
+    // Draft media: author session cookie required.
+    if (!(await isAdmin(request.headers.get("cookie")))) {
       return new Response("unauthorized", { status: 401 });
     }
   }

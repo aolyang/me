@@ -8,7 +8,7 @@ One Cloudflare Worker serving:
 - **`/notes/:id`** — instant public URL for a just-published note (SSR from a
   D1 snapshot). 302-redirects to `/posts/:slug` once the static build catches
   up with the published revision.
-- **`/editor`** — TipTap editor behind Cloudflare Access: autosave, publish,
+- **`/editor`** — TipTap editor behind password auth: autosave, publish,
   unpublish, paste-image upload (R2), comment moderation.
 
 ## How publishing works
@@ -33,7 +33,7 @@ eventual on the static side (a delete commit + rebuild removes the page).
 Astro 7 (`output: "server"` + `@astrojs/cloudflare` unified entrypoint) ·
 React 19 islands · TipTap 3 (+ `@tiptap/static-renderer` at build time) ·
 D1 (notes, snapshots, jobs, media metadata, comments) · R2 (images) ·
-Cloudflare Access (author auth) · Turnstile (comment anti-bot) ·
+password + HMAC-signed-cookie auth (author) · Turnstile (comment anti-bot) ·
 GitHub Actions (build + deploy).
 
 ## Local development
@@ -50,47 +50,34 @@ pnpm preview            # wrangler dev on :8787 with local D1/R2 bindings
 ```
 
 Without `.dev.vars` secrets everything runs in local-dev mode:
-admin APIs are open (no Access), Turnstile verification is skipped.
+admin APIs are open (no password), Turnstile verification is skipped.
 Create `.dev.vars` (gitignored) to exercise the hardened paths:
 
 ```
+AUTH_PASSWORD=<long random string>   # enables login + session cookies
 GITHUB_REPO=you/you-blog
 GITHUB_TOKEN=github_pat_...        # fine-grained PAT, Contents: RW, this repo only
-ACCESS_TEAM=yourteam.cloudflareaccess.com
-ACCESS_AUD=<access application aud tag>
 TURNSTILE_SECRET=0x...
 ```
 
-### Testing auth locally (three layers)
+### Testing auth locally
 
-Cloudflare Access's real login page (email OTP etc.) is an edge service —
-it can never appear under `wrangler dev`. Local testing covers the layers
-you own:
+With `AUTH_PASSWORD` set in `.dev.vars`, the full login flow runs locally
+(same code path as production):
 
-1. **Fail-closed** (no `.dev.vars` → with): set `ACCESS_TEAM`/`ACCESS_AUD`
-   to any value → every admin call without a JWT returns 401.
-2. **Full JWT verification chain** — the mock JWKS tool mints a valid,
-   properly-signed Access-shaped token and serves the JWKS endpoint the
-   Worker fetches:
-   ```bash
-   # .dev.vars:
-   #   ACCESS_TEAM=127.0.0.1:8788
-   #   ACCESS_AUD=dev-aud
-   node scripts/dev-access-token.mjs        # terminal 1: JWKS server + token
-   pnpm preview                             # terminal 2
-   curl -H "Cf-Access-Jwt-Assertion: <token>" http://127.0.0.1:8787/api/admin/notes
-   ```
-   Verified: valid token → 200; tampered payload (signature now invalid)
-   → 401; no token → 401. Tampering test: change the payload JSON,
-   keep the original signature.
-3. **Real Access login** — only after deploy. Configure the Zero Trust app
-   (README §production setup), open `/editor` in a browser, complete the
-   OTP email flow, and confirm the Worker accepts the edge-injected JWT.
+```bash
+pnpm preview
+# browser: http://127.0.0.1:8787/editor/  → redirects to /login → enter password
+# or curl:
+curl -c cookies.txt -X POST http://127.0.0.1:8787/api/auth/login \
+  -H 'content-type: application/json' -d '{"password":"..."}'
+curl -b cookies.txt http://127.0.0.1:8787/api/admin/notes
+```
 
-Note: browser-based editor testing with a token (layer 2) works too —
-set the header via a devtools override extension, or just curl the APIs.
-The editor page itself never enforces auth (Access protects it at the
-edge in production; the APIs fail closed on their own).
+Fail-closed checks: wrong password → 401 (with fixed delay), no cookie →
+401 / editor redirects to /login, forged cookie (tampered HMAC) → 401.
+Rotating `AUTH_PASSWORD` invalidates every existing session (the HMAC key
+is derived from the password).
 
 `pnpm dev` (astro dev) also works for pure frontend iteration, but bindings
 come from the adapter's dev proxy; prefer `pnpm preview` for full fidelity.
@@ -104,22 +91,19 @@ come from the adapter's dev proxy; prefer `pnpm preview` for full fidelity.
    wrangler d1 execute DB --file migrations/0001_init.sql   # remote
    ```
 2. **Secrets** (Worker → Settings → Variables, or `wrangler secret put`):
+   - `AUTH_PASSWORD` — a long random string (generate: `openssl rand -base64 24`).
+     This is the editor login. Rotating it logs out all devices.
    - `GITHUB_TOKEN` — fine-grained PAT scoped to this repo, Contents read/write
    - `GITHUB_REPO` — `owner/repo`
-   - `ACCESS_TEAM`, `ACCESS_AUD` — from step 3
-   - `TURNSTILE_SECRET` — from step 4
-3. **Cloudflare Access (Zero Trust, free)**: create a self-hosted app for the
-   worker domain with two path rules — `/editor` and `/api/admin` — policy:
-   allow your email (login method: one-time PIN or GitHub/Google). Copy the
-   app's **AUD tag** into `ACCESS_AUD` and your team host into `ACCESS_TEAM`.
-4. **Turnstile**: create a managed widget for the domain → site key goes into
+   - `TURNSTILE_SECRET` — from step 3
+3. **Turnstile**: create a managed widget for the domain → site key goes into
    the Comments island host attribute (`data-turnstile-key` on the
    `<section>` wrapper in `[...slug].astro` / `notes/[id].astro` if you want
    the widget; omitted = no widget rendered), secret into `TURNSTILE_SECRET`.
-5. **GitHub Actions**: repo secret `CLOUDFLARE_API_TOKEN` (permission:
+4. **GitHub Actions**: repo secret `CLOUDFLARE_API_TOKEN` (permission:
    Workers Scripts — Edit, plus Account-level Workers Deployments if your
    account requires it). Push to `main` → build + `wrangler deploy`.
-6. Set `site:` in `astro.config.mjs` to your real origin (RSS absolute URLs).
+5. Set `site:` in `astro.config.mjs` to your real origin (RSS absolute URLs).
 7. Optional: custom domain / routes on the worker; consider disabling the
    public `workers.dev` route (Workers → Settings → Domains & Routes).
 

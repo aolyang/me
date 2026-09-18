@@ -43,6 +43,11 @@ export default function NoteList() {
     }
   }
 
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    location.href = "/";
+  }
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -51,6 +56,9 @@ export default function NoteList() {
           {anyFailed && <button onClick={retryAll}>Retry failed exports</button>}
           <button onClick={createNote} disabled={creating}>
             + New note
+          </button>
+          <button onClick={logout} title="Sign out">
+            ⎋
           </button>
         </div>
       </div>

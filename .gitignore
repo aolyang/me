@@ -147,3 +147,6 @@ vite.config.ts.timestamp-*
 .wrangler/
 .astro/
 .playwright-mcp/
+
+# secrets
+.auth-password.txt

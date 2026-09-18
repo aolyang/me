@@ -7,9 +7,8 @@ import { env } from "cloudflare:workers";
 export const runtimeEnv = env as unknown as {
   DB: D1Database;
   MEDIA: R2Bucket;
+  AUTH_PASSWORD?: string;
   GITHUB_TOKEN?: string;
   GITHUB_REPO?: string;
-  ACCESS_TEAM?: string;
-  ACCESS_AUD?: string;
   TURNSTILE_SECRET?: string;
 };

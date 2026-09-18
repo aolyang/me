@@ -1,0 +1,8 @@
+---
+import Base from "../layouts/Base.astro";
+import Login from "../components/Login";
+---
+
+<Base title="Sign in">
+  <Login client:load next={Astro.url.searchParams.get("next") ?? "/editor/"} />
+</Base>
