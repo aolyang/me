@@ -4,26 +4,21 @@ import { createSessionCookie } from "../../../../lib/auth";
 
 export const prerender = false;
 
-// GET /api/auth/:provider/callback — finish the OAuth flow:
-// verify state → exchange code → check allow-list → issue session cookie.
-export const GET: APIRoute = async ({ params, url, request }) => {
-  const p = getProvider(params.provider!);
-  if (!p) return new Response("provider not configured", { status: 404 });
+// GET /api/auth/github/callback — verify state → exchange code →
+// AUTHOR_EMAILS allow-list → 30-day admin session cookie.
+export const GET: APIRoute = async ({ url, request }) => {
+  const p = getProvider();
+  if (!p) return new Response("github oauth not configured", { status: 404 });
 
   const code = url.searchParams.get("code");
   const stateRaw = url.searchParams.get("state");
   if (!code) return new Response("missing code", { status: 400 });
 
-  // state = "<hex>.<base64 next path>"
-  const dot = stateRaw?.indexOf(".") ?? -1;
-  if (!stateRaw || dot < 0) return new Response("bad state", { status: 400 });
-  const state = stateRaw.slice(0, dot);
-  let next = "/editor/";
-  try {
-    next = sanitizeNext(atob(stateRaw.slice(dot + 1)));
-  } catch {
-    /* keep default */
-  }
+  // state = "<hex>|admin|nextPath"
+  const parts = stateRaw?.split("|") ?? [];
+  if (parts.length !== 3) return new Response("bad state", { status: 400 });
+  const [state, , nextRaw] = parts;
+  const next = sanitizeNext(nextRaw);
 
   if (!(await verifyState(request.headers.get("cookie"), state))) {
     return new Response("state mismatch — retry login", { status: 403 });
@@ -43,7 +38,6 @@ export const GET: APIRoute = async ({ params, url, request }) => {
 
   const headers = new Headers({ location: next });
   headers.append("set-cookie", await createSessionCookie());
-  // clear the one-shot state cookie
   headers.append("set-cookie", "me_oauth_state=; Path=/api/auth; HttpOnly; Secure; Max-Age=0");
   return new Response(null, { status: 302, headers });
 };

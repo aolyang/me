@@ -4,7 +4,7 @@
 import Base from "../../layouts/Base.astro";
 import { getCollection, getEntry, render } from "astro:content";
 import { renderNoteHtml } from "../../lib/tiptap-render";
-import Comments from "../../components/Comments";
+import GiscusComments from "../../components/GiscusComments.astro";
 
 export const prerender = true;
 
@@ -69,6 +69,6 @@ if (kind === "note") {
         </div>
       )
     }
-    <Comments client:visible contentId={commentId} />
+    <GiscusComments term={commentId} />
   </article>
 </Base>

@@ -113,9 +113,6 @@ export default function NoteList() {
         </ul>
       )}
 
-      <p style={{ marginTop: "2rem" }}>
-        <a href="/editor/comments">评论审核 →</a>
-      </p>
     </div>
   );
 }

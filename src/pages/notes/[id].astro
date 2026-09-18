@@ -4,7 +4,7 @@
 //   deployed revision == public rev  → 302 to the static /posts/:slug
 //   otherwise (build in flight etc.) → SSR the immutable D1 snapshot
 import Base from "../../layouts/Base.astro";
-import Comments from "../../components/Comments";
+import GiscusComments from "../../components/GiscusComments.astro";
 import { getNote } from "../../lib/db";
 import { decideNoteRoute, deployedNoteRevisions } from "../../lib/resolver";
 import { renderNoteHtml } from "../../lib/tiptap-render";
@@ -48,6 +48,6 @@ const publishedAt = note.published_at ?? note.updated_at;
       </div>
     </header>
     <div class="prose" set:html={html} />
-    <Comments client:visible contentId={note.id} />
+    <GiscusComments term={note.id} />
   </article>
 </Base>

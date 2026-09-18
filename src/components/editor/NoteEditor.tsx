@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { EditorContent, useEditor, ReactRenderer } from "@tiptap/react";
+import type { SuggestionProps, SuggestionKeyDownProps } from "@tiptap/suggestion";
 import { BubbleMenu } from "@tiptap/react/menus";
 import tippy from "tippy.js";
 import "tippy.js/dist/tippy.css";
 import { contentExtensions } from "../../content-extensions";
 import { SlashCommands, type SlashCommandItem } from "./slash-commands";
 import SlashMenu from "./SlashMenu";
-import Placeholder from "@tiptap/extension-placeholder";
+import Placeholder from "@tiptap/extension-placeholder";;
 
 interface NoteRecord {
   id: string;
@@ -36,14 +37,17 @@ export default function NoteEditor({ noteId }: { noteId: string }) {
       SlashCommands.configure({
         suggestion: {
           render: () => {
-            let component: ReactRenderer | null = null;
-            let popup: TippyInstance[] | TippyInstance | null = null;
+            let component: ReactRenderer<{ onKeyDown: (p: unknown) => boolean }> | null = null;
+            let popup: Array<{ setProps: (p: object) => void; hide: () => void; destroy: () => void }> | null = null;
 
             return {
-              onStart: (props) => {
+              onStart: (props: SuggestionProps<SlashCommandItem>) => {
                 // use the editor FROM the props — the `editor` closure captured
                 // at useEditor() time may still be null on first render.
-                component = new ReactRenderer(SlashMenu, { editor: props.editor, props });
+                component = new ReactRenderer(SlashMenu, {
+                  editor: props.editor,
+                  props,
+                });
                 const rect = props.clientRect?.();
                 if (!rect) return;
                 popup = tippy(document.body, {
@@ -56,16 +60,16 @@ export default function NoteEditor({ noteId }: { noteId: string }) {
                   placement: "bottom-start",
                 });
               },
-              onUpdate: (props) => {
+              onUpdate: (props: SuggestionProps<SlashCommandItem>) => {
                 component?.updateProps(props);
                 const rect = props.clientRect?.();
-                const inst = (popup as Array<{ setProps: (p: object) => void }> | null)?.[0];
+                const inst = popup?.[0];
                 if (rect && inst) {
                   inst.setProps({ getReferenceClientRect: () => rect as DOMRect });
                 }
               },
-              onKeyDown: (props) => {
-                const inst = (popup as Array<{ hide: () => void }> | null)?.[0];
+              onKeyDown: (props: SuggestionKeyDownProps) => {
+                const inst = popup?.[0];
                 if (props.event.key === "Escape") {
                   inst?.hide();
                   return true;
@@ -73,7 +77,7 @@ export default function NoteEditor({ noteId }: { noteId: string }) {
                 return component?.ref?.onKeyDown(props) ?? false;
               },
               onExit: () => {
-                (popup as Array<{ destroy: () => void }> | null)?.[0]?.destroy();
+                popup?.[0]?.destroy();
                 popup = null;
                 component?.destroy();
                 component = null;
@@ -263,7 +267,7 @@ export default function NoteEditor({ noteId }: { noteId: string }) {
   return (
     <div>
       <input
-        class="title-input"
+        className="title-input"
         value={title}
         placeholder="标题"
         onChange={(e) => {
@@ -274,7 +278,7 @@ export default function NoteEditor({ noteId }: { noteId: string }) {
       />
 
       {editor && (
-        <BubbleMenu editor={editor} tippyOptions={{ duration: 120 }} className="bubble-menu">
+        <BubbleMenu editor={editor} options={{ tippyOptions: { duration: 120 } }} className="bubble-menu">
           <button
             onClick={() => editor.chain().focus().toggleBold().run()}
             className={editor.isActive("bold") ? "is-active" : ""}

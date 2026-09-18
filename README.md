@@ -9,7 +9,7 @@ One Cloudflare Worker serving:
   D1 snapshot). 302-redirects to `/posts/:slug` once the static build catches
   up with the published revision.
 - **`/editor`** — TipTap editor behind password auth: autosave, publish,
-  unpublish, paste-image upload (R2), comment moderation.
+  unpublish, paste-image upload (R2).
 
 ## How publishing works
 
@@ -32,9 +32,9 @@ eventual on the static side (a delete commit + rebuild removes the page).
 
 Astro 7 (`output: "server"` + `@astrojs/cloudflare` unified entrypoint) ·
 React 19 islands · TipTap 3 (+ `@tiptap/static-renderer` at build time) ·
-D1 (notes, snapshots, jobs, media metadata, comments) · R2 (images) ·
-password + HMAC-signed-cookie auth (author) · Turnstile (comment anti-bot) ·
-GitHub Actions (build + deploy).
+D1 (notes, snapshots, jobs, media metadata) · R2 (images) ·
+password + HMAC-signed-cookie auth (author) · self-hosted giscus
+(giscus.aolyang.me, comments via GitHub Discussions) · GitHub Actions (build + deploy).
 
 ## Local development
 
@@ -50,14 +50,13 @@ pnpm preview            # wrangler dev on :8787 with local D1/R2 bindings
 ```
 
 Without `.dev.vars` secrets everything runs in local-dev mode:
-admin APIs are open (no password), Turnstile verification is skipped.
+admin APIs are open (no password).
 Create `.dev.vars` (gitignored) to exercise the hardened paths:
 
 ```
 AUTH_PASSWORD=<long random string>   # enables login + session cookies
 GITHUB_REPO=you/you-blog
 GITHUB_TOKEN=github_pat_...        # fine-grained PAT, Contents: RW, this repo only
-TURNSTILE_SECRET=0x...
 ```
 
 ### Testing auth locally
@@ -95,7 +94,6 @@ come from the adapter's dev proxy; prefer `pnpm preview` for full fidelity.
      This is the editor login. Rotating it logs out all devices.
    - `GITHUB_TOKEN` — fine-grained PAT scoped to this repo, Contents read/write
    - `GITHUB_REPO` — `owner/repo`
-   - `TURNSTILE_SECRET` — from step 3
    - OAuth (optional, each provider independent):
      - GitHub OAuth App (github.com → Settings → Developer settings → OAuth Apps),
        callback `https://<origin>/api/auth/github/callback` → secrets
@@ -108,10 +106,11 @@ come from the adapter's dev proxy; prefer `pnpm preview` for full fidelity.
        gets 403. Leave unset to allow any (not recommended).
    - Note: use `printf '%s' '<value>' | wrangler secret put NAME` — piping from
      `cat file` includes the trailing newline.
-3. **Turnstile**: create a managed widget for the domain → site key goes into
-   the Comments island host attribute (`data-turnstile-key` on the
-   `<section>` wrapper in `[...slug].astro` / `notes/[id].astro` if you want
-   the widget; omitted = no widget rendered), secret into `TURNSTILE_SECRET`.
+3. **giscus comments**: self-hosted at giscus.aolyang.me (separate Worker from
+   D:open-sourcegithub-previewgiscus, migrated to vinext). GitHub App
+   `giscus-aolyang-me` (Discussions RW) installed on aolyang/me; visitor
+   identity via GitHub OAuth against that App. Site embeds the widget in
+   src/components/GiscusComments.astro (mapping: specific term = contentId).
 4. **GitHub Actions**: repo secret `CLOUDFLARE_API_TOKEN` (permission:
    Workers Scripts — Edit, plus Account-level Workers Deployments if your
    account requires it). Push to `main` → build + `wrangler deploy`.
@@ -134,14 +133,14 @@ content/notes/*.json         exported published notes (created by the Worker)
 migrations/0001_init.sql     D1 schema
 src/content.config.ts        zod schemas for both collections
 src/content-extensions.ts    TipTap extension set shared by editor + renderer
-src/lib/                     db, env, auth (Access JWT), github, publish,
-                             resolver (revision routing), tiptap-render,
-                             turnstile, slug
+src/lib/                     db, env, auth (password+cookie), oauth (admin
+                             GitHub login), github, publish, resolver
+                             (revision routing), tiptap-render, slug
 src/pages/                   index (SSR merged list), posts/[...slug] (static),
                              notes/[id] (SSR/302), editor/*, api/admin/*,
-                             api/public/comments, media/[...key], rss.xml
-src/components/editor/       NoteList, NoteEditor (TipTap), ModerationQueue
-src/components/Comments.tsx  public comments island (used on both page kinds)
+                             api/auth/*, media/[...key], rss.xml
+src/components/editor/       NoteList, NoteEditor (TipTap, bubble+slash menus)
+src/components/GiscusComments.astro  giscus widget (both page kinds)
 ```
 
 ## Notes on behavior
@@ -154,9 +153,9 @@ src/components/Comments.tsx  public comments island (used on both page kinds)
 - **Images** paste directly into the editor; they live in R2 under immutable
   keys and stay private until their note publishes. Images are never
   committed to git.
-- **Comments** are anonymous, plain-text only, Turnstile-gated, held for
-  approval, keyed by stable content id (note id or post `commentId`) so a
-  note's dynamic and static pages share one thread.
+- **Comments** run on self-hosted giscus (giscus.aolyang.me); data lives in
+  the aolyang/me repo Discussions. One thread per content id, shared between
+  /notes/:id and /posts/:slug.
 - **Delete vs unpublish**: deleting a published note is blocked until you
   unpublish it. Unpublish hides it immediately; the static URL disappears
   after the next deploy.

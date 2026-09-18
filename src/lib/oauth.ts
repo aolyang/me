@@ -1,22 +1,16 @@
-// Self-implemented OAuth 2.0 authorization-code flow for GitHub and Google,
-// running entirely in the Worker. No libraries, no Zero Trust.
+// Self-implemented OAuth 2.0 authorization-code flow for GitHub (admin
+// editor login only — visitor comment identity is handled by giscus).
 //
-// Provider apps you create yourself:
-//   GitHub: Settings → Developer settings → OAuth Apps (callback
-//           <origin>/api/auth/github/callback)
-//   Google: console.cloud.google.com → Credentials → OAuth client
-//           (callback <origin>/api/auth/google/callback)
-// Secrets: GITHUB_CLIENT_ID/GITHUB_CLIENT_SECRET, GOOGLE_CLIENT_ID/
-//          GOOGLE_CLIENT_SECRET. Each provider activates only when both
-//          its secrets exist.
-//
-// Allowed account: AUTHOR_EMAILS (comma-separated). Any other account is
-// rejected with 403 — this is a single-author site, not open signup.
+// Provider app you create yourself:
+//   GitHub: Settings → Developer settings → OAuth Apps (callbacks
+//           https://<origin>/api/auth/github/callback AND optionally
+//           http://localhost:8787/api/auth/github/callback for local dev)
+// Secrets: GITHUB_CLIENT_ID / GITHUB_CLIENT_SECRET — activates when both exist.
 
 import { runtimeEnv } from "./env";
 
 export interface OAuthProvider {
-  id: "github" | "google";
+  id: "github";
   authUrl: string;
   tokenUrl: string;
   userUrl: string;
@@ -25,44 +19,30 @@ export interface OAuthProvider {
   clientSecret: string;
 }
 
-export function getProvider(id: string): OAuthProvider | null {
-  if (id === "github" && runtimeEnv.GITHUB_CLIENT_ID && runtimeEnv.GITHUB_CLIENT_SECRET) {
+export function getProvider(): OAuthProvider | null {
+  if (runtimeEnv.GITHUB_CLIENT_ID && runtimeEnv.GITHUB_CLIENT_SECRET) {
     return {
       id: "github",
       authUrl: "https://github.com/login/oauth/authorize",
       tokenUrl: "https://github.com/login/oauth/access_token",
       userUrl: "https://api.github.com/user",
+      // read:user is enough for identity; user:email covers hidden-primary-email
       scope: "read:user user:email",
       clientId: runtimeEnv.GITHUB_CLIENT_ID,
       clientSecret: runtimeEnv.GITHUB_CLIENT_SECRET,
     };
   }
-  if (id === "google" && runtimeEnv.GOOGLE_CLIENT_ID && runtimeEnv.GOOGLE_CLIENT_SECRET) {
-    return {
-      id: "google",
-      authUrl: "https://accounts.google.com/o/oauth2/v2/auth",
-      tokenUrl: "https://oauth2.googleapis.com/token",
-      userUrl: "https://openidconnect.googleapis.com/v1/userinfo",
-      scope: "openid email profile",
-      clientId: runtimeEnv.GOOGLE_CLIENT_ID,
-      clientSecret: runtimeEnv.GOOGLE_CLIENT_SECRET,
-    };
-  }
   return null;
 }
 
-/** Which providers are configured (drives the login page buttons). */
-export function oauthProviders(): Array<"github" | "google"> {
-  const list: Array<"github" | "google"> = [];
-  if (runtimeEnv.GITHUB_CLIENT_ID && runtimeEnv.GITHUB_CLIENT_SECRET) list.push("github");
-  if (runtimeEnv.GOOGLE_CLIENT_ID && runtimeEnv.GOOGLE_CLIENT_SECRET) list.push("google");
-  return list;
+export function githubEnabled(): boolean {
+  return getProvider() !== null;
 }
 
 /** Only same-site absolute paths survive the ?next= round-trip. */
-export function sanitizeNext(raw: string | null): string {
-  if (!raw) return "/editor/";
-  return raw.startsWith("/") && !raw.startsWith("//") ? raw : "/editor/";
+export function sanitizeNext(raw: string | null, fallback = "/editor/"): string {
+  if (!raw) return fallback;
+  return raw.startsWith("/") && !raw.startsWith("//") ? raw : fallback;
 }
 
 export function allowedEmails(): string[] {
@@ -108,7 +88,7 @@ async function hmacKey(): Promise<CryptoKey> {
   // Keyed by AUTH_PASSWORD when present; falls back to a constant (local dev).
   const material = await crypto.subtle.digest(
     "SHA-256",
-    new TextEncoder().encode("oauth:" + (runtimeEnv.AUTH_PASSWORD ?? "local-dev")),
+    new TextEncoder().encode(`oauth:${runtimeEnv.AUTH_PASSWORD ?? "local-dev"}`),
   );
   return crypto.subtle.importKey("raw", material, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
 }
@@ -116,6 +96,8 @@ async function hmacKey(): Promise<CryptoKey> {
 export interface OAuthUser {
   email: string;
   name: string;
+  login: string; // github username
+  avatarUrl: string | null;
 }
 
 /** Exchange the code + fetch the verified user identity. */
@@ -143,10 +125,12 @@ export async function exchangeCode(p: OAuthProvider, code: string, redirectUri: 
     email?: string | null;
     login?: string;
     name?: string | null;
+    avatar_url?: string | null;
   };
+  if (!user.login) throw new Error("no github login in profile");
 
   let email = user.email;
-  if (!email && p.id === "github") {
+  if (!email) {
     // GitHub hides email unless user:email granted — fetch primary.
     const emailsRes = await fetch("https://api.github.com/user/emails", {
       headers: { authorization: `Bearer ${token.access_token}`, accept: "application/json" },
@@ -156,6 +140,10 @@ export async function exchangeCode(p: OAuthProvider, code: string, redirectUri: 
       email = emails.find((e) => e.primary && e.verified)?.email ?? emails[0]?.email ?? null;
     }
   }
-  if (!email) throw new Error("no email from provider");
-  return { email: email.toLowerCase(), name: user.name ?? user.login ?? email };
+  return {
+    email: (email ?? `${user.login}@users.noreply.github.com`).toLowerCase(),
+    name: user.name ?? user.login,
+    login: user.login,
+    avatarUrl: user.avatar_url ?? null,
+  };
 }
