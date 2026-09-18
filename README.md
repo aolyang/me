@@ -61,6 +61,37 @@ ACCESS_AUD=<access application aud tag>
 TURNSTILE_SECRET=0x...
 ```
 
+### Testing auth locally (three layers)
+
+Cloudflare Access's real login page (email OTP etc.) is an edge service —
+it can never appear under `wrangler dev`. Local testing covers the layers
+you own:
+
+1. **Fail-closed** (no `.dev.vars` → with): set `ACCESS_TEAM`/`ACCESS_AUD`
+   to any value → every admin call without a JWT returns 401.
+2. **Full JWT verification chain** — the mock JWKS tool mints a valid,
+   properly-signed Access-shaped token and serves the JWKS endpoint the
+   Worker fetches:
+   ```bash
+   # .dev.vars:
+   #   ACCESS_TEAM=127.0.0.1:8788
+   #   ACCESS_AUD=dev-aud
+   node scripts/dev-access-token.mjs        # terminal 1: JWKS server + token
+   pnpm preview                             # terminal 2
+   curl -H "Cf-Access-Jwt-Assertion: <token>" http://127.0.0.1:8787/api/admin/notes
+   ```
+   Verified: valid token → 200; tampered payload (signature now invalid)
+   → 401; no token → 401. Tampering test: change the payload JSON,
+   keep the original signature.
+3. **Real Access login** — only after deploy. Configure the Zero Trust app
+   (README §production setup), open `/editor` in a browser, complete the
+   OTP email flow, and confirm the Worker accepts the edge-injected JWT.
+
+Note: browser-based editor testing with a token (layer 2) works too —
+set the header via a devtools override extension, or just curl the APIs.
+The editor page itself never enforces auth (Access protects it at the
+edge in production; the APIs fail closed on their own).
+
 `pnpm dev` (astro dev) also works for pure frontend iteration, but bindings
 come from the adapter's dev proxy; prefer `pnpm preview` for full fidelity.
 

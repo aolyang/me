@@ -42,7 +42,10 @@ async function fetchJwks(team: string): Promise<JsonWebKey[]> {
   if (cachedJwks && Date.now() - cachedJwks.fetchedAt < JWKS_TTL_MS) {
     return cachedJwks.keys;
   }
-  const res = await fetch(`https://${team}/cdn-cgi/access/certs`);
+  // Real Access teams are always https; loopback teams are the local-dev
+  // JWKS mock (scripts/dev-access-token.mjs), which serves plain http.
+  const scheme = /^(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/.test(team) ? "http" : "https";
+  const res = await fetch(`${scheme}://${team}/cdn-cgi/access/certs`);
   if (!res.ok) throw new Error(`jwks fetch failed: ${res.status}`);
   const data = (await res.json()) as { keys: JsonWebKey[] };
   cachedJwks = { keys: data.keys, fetchedAt: Date.now() };
