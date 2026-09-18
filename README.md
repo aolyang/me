@@ -96,6 +96,18 @@ come from the adapter's dev proxy; prefer `pnpm preview` for full fidelity.
    - `GITHUB_TOKEN` — fine-grained PAT scoped to this repo, Contents read/write
    - `GITHUB_REPO` — `owner/repo`
    - `TURNSTILE_SECRET` — from step 3
+   - OAuth (optional, each provider independent):
+     - GitHub OAuth App (github.com → Settings → Developer settings → OAuth Apps),
+       callback `https://<origin>/api/auth/github/callback` → secrets
+       `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`
+     - Google (console.cloud.google.com → APIs & Services → Credentials → OAuth
+       client ID), callback `https://<origin>/api/auth/google/callback` → secrets
+       `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+     - `AUTHOR_EMAILS` — comma-separated; ONLY these accounts can sign in
+       (e.g. `you@gmail.com,you@users.noreply.github.com`). Any other account
+       gets 403. Leave unset to allow any (not recommended).
+   - Note: use `printf '%s' '<value>' | wrangler secret put NAME` — piping from
+     `cat file` includes the trailing newline.
 3. **Turnstile**: create a managed widget for the domain → site key goes into
    the Comments island host attribute (`data-turnstile-key` on the
    `<section>` wrapper in `[...slug].astro` / `notes/[id].astro` if you want
