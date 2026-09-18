@@ -15,6 +15,10 @@
   "observability": {
     "enabled": true
   },
+  "routes": [
+    { "pattern": "aolyang.me", "custom_domain": true },
+    { "pattern": "www.aolyang.me", "custom_domain": true }
+  ],
   "d1_databases": [
     {
       "binding": "DB",
