@@ -1,0 +1,26 @@
+---
+title: Hello, world
+description: The first hand-written article — MDX with a React island.
+publishedAt: 2026-09-18
+---
+
+import Counter from "../../src/components/Counter.tsx";
+
+This is a **complex article**: authored as MDX in the repo, built to a static
+page by GitHub Actions. It can contain interactive React islands that a quick
+note could never have:
+
+<Counter client:load start={3} />
+
+## Why two content pipelines?
+
+- **Notes** are for zero-friction capture — open the editor, type, publish.
+- **Posts** like this one are for content that needs custom components,
+  code playgrounds, or careful layout work.
+
+```ts
+// MDX posts get full syntax highlighting via Shiki at build time.
+export function greet(name: string) {
+  return `Hello, ${name}!`;
+}
+```

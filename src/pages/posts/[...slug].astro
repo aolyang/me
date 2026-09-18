@@ -1,0 +1,74 @@
+---
+// Prerendered article route: renders BOTH hand-written MDX posts and
+// exported note JSON from a single URL space (/posts/:slug).
+import Base from "../../layouts/Base.astro";
+import { getCollection, getEntry, render } from "astro:content";
+import { renderNoteHtml } from "../../lib/tiptap-render";
+import Comments from "../../components/Comments";
+
+export const prerender = true;
+
+export async function getStaticPaths() {
+  const posts = await getCollection("posts", (p) => !p.data.draft);
+  const notes = await getCollection("notes");
+  return [
+    ...posts.map((entry) => ({
+      params: { slug: entry.id },
+      props: { kind: "post" as const, id: entry.id },
+    })),
+    ...notes.map((entry) => ({
+      params: { slug: entry.data.slug },
+      props: { kind: "note" as const, id: entry.id },
+    })),
+  ];
+}
+
+const { kind, id } = Astro.props;
+
+let title: string;
+let publishedAt: Date;
+let noteHtml: string | undefined;
+let PostContent: any;
+let commentId: string;
+
+if (kind === "note") {
+  const entry = await getEntry("notes", id);
+  if (!entry) throw new Error(`note ${id} vanished between getStaticPaths and render`);
+  title = entry.data.title;
+  publishedAt = new Date(entry.data.publishedAt);
+  noteHtml = renderNoteHtml(entry.data.document);
+  commentId = entry.data.noteId; // notes thread by their stable id
+} else {
+  const entry = await getEntry("posts", id);
+  if (!entry) throw new Error(`post ${id} vanished between getStaticPaths and render`);
+  title = entry.data.title;
+  publishedAt = entry.data.publishedAt;
+  commentId = entry.data.commentId ?? entry.id;
+  const rendered = await render(entry);
+  PostContent = rendered.Content;
+}
+---
+
+<Base title={title}>
+  <article>
+    <header class="article-header">
+      <h1>{title}</h1>
+      <div class="meta">
+        <time datetime={publishedAt.toISOString()}>
+          {publishedAt.toISOString().slice(0, 10)}
+        </time>
+        {kind === "note" && <span class="badge">note</span>}
+      </div>
+    </header>
+    {
+      noteHtml !== undefined ? (
+        <div class="prose" set:html={noteHtml} />
+      ) : (
+        <div class="prose">
+          <PostContent />
+        </div>
+      )
+    }
+    <Comments client:visible contentId={commentId} />
+  </article>
+</Base>

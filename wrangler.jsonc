@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // Unified adapter entrypoint — handles both `astro dev` and production
+  "main": "@astrojs/cloudflare/entrypoints/server",
+  "name": "me",
+  "compatibility_date": "2026-09-18",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist/client",
+    // Paths that must reach the Worker (API, editor, SSR routes) instead of
+    // being served directly from static assets. Everything else static-first.
+    "run_worker_first": ["/api/*", "/notes/*", "/editor/*", "/media/*", "/rss.xml"]
+  },
+  "observability": {
+    "enabled": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "me-notes",
+      "database_id": "REPLACE_WITH_D1_ID"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "MEDIA",
+      "bucket_name": "me-media"
+    }
+  ]
+}

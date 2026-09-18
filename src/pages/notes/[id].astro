@@ -1,0 +1,53 @@
+---
+// Public note URL. Lifecycle:
+//   draft / unpublished / deleted     → 404
+//   deployed revision == public rev  → 302 to the static /posts/:slug
+//   otherwise (build in flight etc.) → SSR the immutable D1 snapshot
+import Base from "../../layouts/Base.astro";
+import Comments from "../../components/Comments";
+import { getNote } from "../../lib/db";
+import { decideNoteRoute, deployedNoteRevisions } from "../../lib/resolver";
+import { renderNoteHtml } from "../../lib/tiptap-render";
+import type { NoteDoc } from "../../lib/types";
+
+export const prerender = false;
+
+const { id } = Astro.params;
+const note = id ? await getNote(id) : null;
+
+if (!note) {
+  return new Response("not found", { status: 404 });
+}
+
+const deployed = await deployedNoteRevisions();
+const decision = decideNoteRoute(note, deployed.get(note.id));
+
+if (decision.kind === "gone") {
+  return new Response("not found", { status: 404 });
+}
+
+if (decision.kind === "redirect") {
+  // Temporary redirect, never cached: a future republish must flip this back
+  // to /notes/:id until the newer build lands.
+  return Astro.redirect(`/posts/${decision.slug}/`, 302);
+}
+
+// SSR from the immutable snapshot — fresh on every request.
+const doc = JSON.parse(note.public_snapshot ?? note.document) as NoteDoc;
+const html = renderNoteHtml(doc);
+const publishedAt = note.published_at ?? note.updated_at;
+---
+
+<Base title={note.title || "Untitled"}>
+  <article>
+    <header class="article-header">
+      <h1>{note.title || "Untitled"}</h1>
+      <div class="meta">
+        <time datetime={publishedAt}>{publishedAt.slice(0, 10)}</time>
+        <span class="badge">note</span>
+      </div>
+    </header>
+    <div class="prose" set:html={html} />
+    <Comments client:visible contentId={note.id} />
+  </article>
+</Base>

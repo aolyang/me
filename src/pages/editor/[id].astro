@@ -1,0 +1,11 @@
+---
+import Base from "../../layouts/Base.astro";
+import NoteEditor from "../../components/editor/NoteEditor";
+
+const { id } = Astro.params;
+if (!id) return new Response("not found", { status: 404 });
+---
+
+<Base title="Edit note">
+  <NoteEditor client:load noteId={id} />
+</Base>

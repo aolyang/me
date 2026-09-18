@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "noteId": "sample-note-0001",
+  "slug": "first-note",
+  "revision": 1,
+  "title": "First note",
+  "publishedAt": "2026-09-18T09:00:00.000Z",
+  "document": {
+    "type": "doc",
+    "content": [
+      {
+        "type": "heading",
+        "attrs": { "level": 2 },
+        "content": [{ "type": "text", "text": "This note came from the editor" }
+        ]
+      },
+      {
+        "type": "paragraph",
+        "content": [
+          { "type": "text", "text": "Quick notes are written in the " },
+          { "type": "text", "marks": [{ "type": "bold" }], "text": "web editor" },
+          { "type": "text", "text": ", stored in D1, published instantly at " },
+          { "type": "text", "marks": [{ "type": "code" }], "text": "/notes/:id" },
+          { "type": "text", "text": ", and committed to the repo as JSON like this file so the build turns them into a static page." }
+        ]
+      },
+      {
+        "type": "bulletList",
+        "content": [
+          {
+            "type": "listItem",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [{ "type": "text", "text": "zero-friction capture" }]
+              }
+            ]
+          },
+          {
+            "type": "listItem",
+            "content": [
+              {
+                "type": "paragraph",
+                "content": [{ "type": "text", "text": "static once the build lands" }]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
