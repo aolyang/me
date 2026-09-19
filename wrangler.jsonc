@@ -3,6 +3,7 @@
   // Unified adapter entrypoint — handles both `astro dev` and production
   "main": "@astrojs/cloudflare/entrypoints/server",
   "name": "me",
+  "account_id": "fdcce8bd04611bb815136b4fa3974d89",
   "compatibility_date": "2026-09-18",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": {
