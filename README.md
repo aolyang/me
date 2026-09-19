@@ -33,8 +33,8 @@ eventual on the static side (a delete commit + rebuild removes the page).
 Astro 7 (`output: "server"` + `@astrojs/cloudflare` unified entrypoint) ·
 React 19 islands · TipTap 3 (+ `@tiptap/static-renderer` at build time) ·
 D1 (notes, snapshots, jobs, media metadata) · R2 (images) ·
-password + HMAC-signed-cookie auth (author) · self-hosted giscus
-(giscus.aolyang.me, comments via GitHub Discussions) · GitHub Actions (build + deploy).
+password + HMAC-signed-cookie auth (author) · giscus.app
+(comments via GitHub Discussions) · GitHub Actions (build + deploy).
 
 ## Local development
 
@@ -106,11 +106,11 @@ come from the adapter's dev proxy; prefer `pnpm preview` for full fidelity.
        gets 403. Leave unset to allow any (not recommended).
    - Note: use `printf '%s' '<value>' | wrangler secret put NAME` — piping from
      `cat file` includes the trailing newline.
-3. **giscus comments**: self-hosted at giscus.aolyang.me (separate Worker from
-   D:open-sourcegithub-previewgiscus, migrated to vinext). GitHub App
-   `giscus-aolyang-me` (Discussions RW) installed on aolyang/me; visitor
-   identity via GitHub OAuth against that App. Site embeds the widget in
-   src/components/GiscusComments.astro (mapping: specific term = contentId).
+3. **giscus comments**: official [giscus.app](https://giscus.app) — install
+   the public giscus GitHub App on the repo, pick the `Announcements`
+   category. Site embeds the widget in src/components/GiscusComments.astro
+   (mapping: specific term = contentId). Existing Discussions carry over
+   unchanged — giscus.app reads the same repo data.
 4. **GitHub Actions**: repo secret `CLOUDFLARE_API_TOKEN` (permission:
    Workers Scripts — Edit, plus Account-level Workers Deployments if your
    account requires it). Push to `main` → build + `wrangler deploy`.
@@ -153,8 +153,8 @@ src/components/GiscusComments.astro  giscus widget (both page kinds)
 - **Images** paste directly into the editor; they live in R2 under immutable
   keys and stay private until their note publishes. Images are never
   committed to git.
-- **Comments** run on self-hosted giscus (giscus.aolyang.me); data lives in
-  the aolyang/me repo Discussions. One thread per content id, shared between
+- **Comments** run on giscus.app; data lives in the aolyang/me repo
+  Discussions. One thread per content id, shared between
   /notes/:id and /posts/:slug.
 - **Delete vs unpublish**: deleting a published note is blocked until you
   unpublish it. Unpublish hides it immediately; the static URL disappears
